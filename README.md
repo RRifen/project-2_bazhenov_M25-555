@@ -71,3 +71,7 @@ drop_table users
 
 - `help` — выводит справочную информацию по всем доступным командам
 - `exit` — завершает работу программы
+
+## asciinema
+
+<a href="https://asciinema.org/a/Wy9si1hCMFqe52Ef" target="_blank"><img src="https://asciinema.org/a/Wy9si1hCMFqe52Ef.svg" /></a>
