@@ -226,6 +226,10 @@ delete from users where is_active = false
 - `help` — выводит справочную информацию по всем доступным командам
 - `exit` — завершает работу программы
 
-## asciinema
+## asciinema DDL
 
 <a href="https://asciinema.org/a/Wy9si1hCMFqe52Ef" target="_blank"><img src="https://asciinema.org/a/Wy9si1hCMFqe52Ef.svg" /></a>
+
+## asciinema DML
+
+<a href="https://asciinema.org/a/4lOlM0qdtl4iaESh" target="_blank"><img src="https://asciinema.org/a/4lOlM0qdtl4iaESh.svg" /></a>
