@@ -280,3 +280,7 @@ delete from users where is_active = false
 ## asciinema DML
 
 <a href="https://asciinema.org/a/4lOlM0qdtl4iaESh" target="_blank"><img src="https://asciinema.org/a/4lOlM0qdtl4iaESh.svg" /></a>
+
+## asciinema Decorators
+
+<a href="https://asciinema.org/a/196NLZWfP3szVVN9" target="_blank"><img src="https://asciinema.org/a/196NLZWfP3szVVN9.svg" /></a>
