@@ -1,3 +1,6 @@
+import time
+from functools import wraps
+
 from prettytable import PrettyTable
 
 from src.primitive_db.utils import load_table_data, save_table_data
@@ -5,10 +8,68 @@ from src.primitive_db.utils import load_table_data, save_table_data
 ALLOWED_COLUMNS_TYPES = ("int", "str", "bool")
 
 
+class ActionSkipFlag:
+    pass
+
+
+def create_cacher():
+    cache = {}
+    
+    def cache_result(key, value_func):
+        if key in cache:
+            return cache[key]
+        result = value_func()
+        cache[key] = result
+        return result
+    
+    return cache_result
+
+
+select_cache = create_cacher()
+
+
+def handle_db_errors(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except (KeyError, ValueError, FileNotFoundError) as e:
+            print(e)
+            return ActionSkipFlag()
+    return wrapper
+
+
+def confirm_action(action_name):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            response = input(f'Вы уверены, что хотите выполнить "{action_name}"? ' 
+                             '[y/n]: ')
+            if response.lower() != 'y':
+                print("Операция отменена")
+                return ActionSkipFlag()
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def log_time(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.monotonic()
+        result = func(*args, **kwargs)
+        end_time = time.monotonic()
+        elapsed_time = end_time - start_time
+        print(f"Функция {func.__name__} выполнилась за {elapsed_time:.3f} секунд.")
+        return result
+    return wrapper
+
+
+@handle_db_errors
 def create_table(metadata, table_name, columns):
     """Создает новую таблицу в метаданных"""
     if table_name in metadata:
-        raise ValueError(f"Таблица '{table_name}' уже существует")
+        raise KeyError(f"Таблица '{table_name}' уже существует")
 
     parsed_columns = []
 
@@ -42,20 +103,24 @@ def create_table(metadata, table_name, columns):
     return metadata
 
 
+@confirm_action("удаление таблицы")
+@handle_db_errors
 def drop_table(metadata, table_name):
     """Удаляет таблицу из метаданных"""
     if table_name not in metadata:
-        raise ValueError(f"Таблица '{table_name}' не существует")
+        raise KeyError(f"Таблица '{table_name}' не существует")
 
     del metadata[table_name]
 
     return metadata
 
 
+@log_time
+@handle_db_errors
 def insert(metadata, table_name, values):
     """Вставляет новую запись в таблицу"""
     if table_name not in metadata:
-        raise ValueError(f"Таблица '{table_name}' не существует")
+        raise KeyError(f"Таблица '{table_name}' не существует")
     
     table_schema = metadata[table_name]
     columns = list(table_schema.keys())
@@ -102,65 +167,50 @@ def insert(metadata, table_name, values):
     return new_id
 
 
-def convert_value(value_str, expected_type):
-    """Преобразует строковое значение в нужный тип"""
-    value_str = value_str.strip()
-    
-    if expected_type == "int":
-        try:
-            return int(value_str)
-        except ValueError:
-            raise ValueError(f"Невозможно преобразовать '{value_str}' в int")
-    elif expected_type == "str":
-        if value_str.startswith("'") and value_str.endswith("'"):
-            return value_str[1:-1]
-        else:
-            raise ValueError(f"Некорректный формат строки: '{value_str}'. "
-                             f"Строковые значения должны быть в кавычках")
-    elif expected_type == "bool":
-        value_lower = value_str.lower()
-        if value_lower in ("true", "1"):
-            return True
-        elif value_lower in ("false", "0"):
-            return False
-        else:
-            raise ValueError(f"Невозможно преобразовать '{value_str}' в bool")
-    else:
-        raise ValueError(f"Неподдерживаемый тип: {expected_type}")
-
-
+@log_time
+@handle_db_errors
 def select(table_data, where_clause=None):
     """Выбирает записи из таблицы с опциональным условием WHERE"""
     if not table_data:
         return "Записей не найдено"
     
-    if where_clause:
-        filtered_data = []
-        for record in table_data:
-            match = True
-            for column, value in where_clause.items():
-                if record[column] != value:
-                    match = False
-                    break
-            if match:
-                filtered_data.append(record)
-        data_to_display = filtered_data
+    if where_clause is None:
+        cache_key = ("all",)
     else:
-        data_to_display = table_data
+        sorted_items = tuple(sorted(where_clause.items()))
+        cache_key = ("where", sorted_items)
     
-    if not data_to_display:
-        return "Записей не найдено"
+    def compute_result():
+        if where_clause:
+            filtered_data = []
+            for record in table_data:
+                match = True
+                for column, value in where_clause.items():
+                    if record[column] != value:
+                        match = False
+                        break
+                if match:
+                    filtered_data.append(record)
+            data_to_display = filtered_data
+        else:
+            data_to_display = table_data
+        
+        if not data_to_display:
+            return "Записей не найдено"
+        
+        columns = list(data_to_display[0].keys())
+        table = PrettyTable(columns)
+        
+        for record in data_to_display:
+            row = [record[col] for col in columns]
+            table.add_row(row)
+        
+        return table.get_string()
     
-    columns = list(data_to_display[0].keys())
-    table = PrettyTable(columns)
-    
-    for record in data_to_display:
-        row = [record[col] for col in columns]
-        table.add_row(row)
-    
-    return table.get_string()
+    return select_cache(cache_key, compute_result)
 
 
+@handle_db_errors
 def update(table_data, set_clause, where_clause):
     """Обновляет записи в таблице"""
     updated_records_ids = set()
@@ -183,6 +233,8 @@ def update(table_data, set_clause, where_clause):
     return updated_records_ids
 
 
+@confirm_action("удаление записей из таблицы")
+@handle_db_errors
 def delete(table_data, where_clause):
     """Удаляет записи из таблицы"""
     deleted_records_ids = set()
@@ -210,6 +262,7 @@ def delete(table_data, where_clause):
     return deleted_records_ids
 
 
+@handle_db_errors
 def info(metadata, table_name):
     """Выводит информацию о таблице"""
     if table_name not in metadata:
@@ -233,3 +286,30 @@ def info(metadata, table_name):
     result += f"Количество записей: {record_count}"
     
     return result
+
+
+def convert_value(value_str, expected_type):
+    """Преобразует строковое значение в нужный тип"""
+    value_str = value_str.strip()
+    
+    if expected_type == "int":
+        try:
+            return int(value_str)
+        except ValueError:
+            raise ValueError(f"Невозможно преобразовать '{value_str}' в int")
+    elif expected_type == "str":
+        if value_str.startswith("'") and value_str.endswith("'"):
+            return value_str[1:-1]
+        else:
+            raise ValueError(f"Некорректный формат строки: '{value_str}'. "
+                             f"Строковые значения должны быть в кавычках")
+    elif expected_type == "bool":
+        value_lower = value_str.lower()
+        if value_lower in ("true", "1"):
+            return True
+        elif value_lower in ("false", "0"):
+            return False
+        else:
+            raise ValueError(f"Невозможно преобразовать '{value_str}' в bool")
+    else:
+        raise ValueError(f"Неподдерживаемый тип: {expected_type}")

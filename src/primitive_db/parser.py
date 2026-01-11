@@ -1,8 +1,9 @@
 import re
 
-from src.primitive_db.core import convert_value
+from src.primitive_db.core import convert_value, handle_db_errors
 
 
+@handle_db_errors
 def parse_where(where_str, table_schema):
     """Парсит условие WHERE и возвращает словарь вида {'column': value}"""
     if not where_str:
@@ -32,6 +33,7 @@ def parse_where(where_str, table_schema):
     return {column_name: converted_value}
 
 
+@handle_db_errors
 def parse_set(set_str, table_schema):
     """Парсит условие SET и возвращает словарь вида {'column': value}"""
     if not set_str:
