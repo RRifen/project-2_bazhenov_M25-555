@@ -3,8 +3,14 @@ import shlex
 
 from prompt import string
 
+from src.primitive_db.constants import (
+    DELETE_PATTERN,
+    INSERT_PATTERN,
+    INSERT_VALUE_PATTERN,
+    SELECT_PATTERN,
+    UPDATE_PATTERN,
+)
 from src.primitive_db.core import (
-    ActionSkipFlag,
     create_table,
     delete,
     drop_table,
@@ -57,7 +63,7 @@ def run():
                 table_name = args[1]
                 columns = args[2:]
                 metadata = create_table(metadata, table_name, columns)
-                if isinstance(metadata, ActionSkipFlag):
+                if is_result_should_be_skipped(metadata):
                     continue
 
                 save_metadata(metadata)
@@ -70,7 +76,7 @@ def run():
                     continue
                 table_name = args[1]
                 metadata = drop_table(metadata, table_name)
-                if isinstance(metadata, ActionSkipFlag):
+                if is_result_should_be_skipped(metadata):
                     continue
 
                 save_metadata(metadata)
@@ -84,8 +90,7 @@ def run():
                     for table_name in metadata.keys():
                         print(f"  - {table_name}")
             case "insert":
-                pattern = r'insert\s+into\s+(\w+)\s+values\s*\((.*)\)'
-                match = re.search(pattern, user_input)
+                match = re.search(INSERT_PATTERN, user_input)
                 
                 if not match:
                     print("Ошибка: некорректный формат команды insert")
@@ -100,8 +105,7 @@ def run():
                     print("Ошибка: не указаны значения для вставки")
                     continue
                 
-                value_pattern = r"(?:'[^']*'|[^,]+)"
-                value_matches = re.findall(value_pattern, values_str)
+                value_matches = re.findall(INSERT_VALUE_PATTERN, values_str)
 
                 values = [v.strip() for v in value_matches if v.strip()]
                 
@@ -110,7 +114,7 @@ def run():
                     continue
                 
                 new_id = insert(metadata, table_name, values)
-                if isinstance(new_id, ActionSkipFlag):
+                if is_result_should_be_skipped(new_id):
                     continue
 
                 print(f'Запись с ID={new_id} успешно '
@@ -122,13 +126,12 @@ def run():
                     continue
                 table_name = args[1]
                 info_text = info(metadata, table_name)
-                if isinstance(info_text, ActionSkipFlag):
+                if is_result_should_be_skipped(info_text):
                     continue
 
                 print(info_text)
             case "select":
-                pattern = r'select\s+from\s+(\w+)(?:\s+where\s+(.+))?'
-                match = re.search(pattern, user_input)
+                match = re.search(SELECT_PATTERN, user_input)
                 
                 if not match:
                     print("Ошибка: некорректный формат команды select")
@@ -147,16 +150,15 @@ def run():
                 table_data = load_table_data(table_name)
                 
                 where_clause = parse_where(where_str, table_schema)
-                if isinstance(where_clause, ActionSkipFlag):
+                if is_result_should_be_skipped(where_clause):
                     continue
                 
                 result = select(table_data, where_clause)
-                if isinstance(result, ActionSkipFlag):
+                if is_result_should_be_skipped(result):
                     continue
                 print(result)
             case "update":
-                pattern = r'update\s+(\w+)\s+set\s+(.+)\s+where\s+(.+)'
-                match = re.search(pattern, user_input)
+                match = re.search(UPDATE_PATTERN, user_input)
                 
                 if not match:
                     print("Ошибка: некорректный формат команды update")
@@ -178,12 +180,12 @@ def run():
                 set_clause = parse_set(set_str, table_schema)
                 where_clause = parse_where(where_str, table_schema)
 
-                if (isinstance(set_clause, ActionSkipFlag) or 
-                    isinstance(where_clause, ActionSkipFlag)):
+                if (is_result_should_be_skipped(set_clause) or 
+                    is_result_should_be_skipped(where_clause)):
                     continue
                 
                 updated_records_ids = update(table_data, set_clause, where_clause)
-                if isinstance(updated_records_ids, ActionSkipFlag):
+                if is_result_should_be_skipped(updated_records_ids):
                     continue
                 
                 if updated_records_ids:
@@ -198,8 +200,7 @@ def run():
                 else:
                     print("Ни одна запись не была обновлена")
             case "delete":
-                pattern = r'delete\s+from\s+(\w+)\s+where\s+(.+)'
-                match = re.search(pattern, user_input)
+                match = re.search(DELETE_PATTERN, user_input)
                 
                 if not match:
                     print("Ошибка: некорректный формат команды delete")
@@ -218,11 +219,11 @@ def run():
                 table_data = load_table_data(table_name)
                 
                 where_clause = parse_where(where_str, table_schema)
-                if isinstance(where_clause, ActionSkipFlag):
+                if is_result_should_be_skipped(where_clause):
                     continue
                 
                 deleted_records_ids = delete(table_data, where_clause)
-                if isinstance(deleted_records_ids, ActionSkipFlag):
+                if is_result_should_be_skipped(deleted_records_ids):
                     continue
                 
                 if deleted_records_ids:
@@ -266,3 +267,10 @@ def print_help():
     print("\nОбщие команды:")
     print("<command> exit - выход из программы")
     print("<command> help - справочная информация\n")
+
+
+def is_result_should_be_skipped(result):
+    """Проверяет, нужно ли пропустить результат выполнения команды"""
+    if result == 'ACTION_SKIP_FLAG':
+        return True
+    return False

@@ -1,8 +1,7 @@
 import json
 import os
 
-DATA_FOLDER_PATH = "./data"
-DB_META_FILEPATH = f"{DATA_FOLDER_PATH}/db_meta.json"
+from src.primitive_db.constants import DATA_FOLDER_PATH, DB_META_FILEPATH
 
 
 def load_metadata():
@@ -36,6 +35,7 @@ def save_table_data(table_name, data):
 
 
 def clear_table_data(table_name):
+    """Удаляет файл с таблицей"""
     table_path = f"{DATA_FOLDER_PATH}/{table_name}.json"
     if os.path.exists(table_path):
         os.remove(table_path)

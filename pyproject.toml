@@ -1,7 +1,7 @@
 [project]
 name = "project-2-bazhenov-m25-555"
 version = "0.1.0"
-description = ""
+description = "Примитивная база данных"
 authors = [
     {name = "RRifen",email = "gorbaty.kit@gmail.com"}
 ]
