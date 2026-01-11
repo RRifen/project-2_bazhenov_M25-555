@@ -1,5 +1,6 @@
 import re
 
+from src.primitive_db.constants import SET_CLAUSE_PATTERN, WHERE_CLAUSE_PATTERN
 from src.primitive_db.core import convert_value, handle_db_errors
 
 
@@ -9,8 +10,7 @@ def parse_where(where_str, table_schema):
     if not where_str:
         return None
     
-    pattern = r'(\w+)\s*=\s*(.+)'
-    match = re.search(pattern, where_str.strip())
+    match = re.search(WHERE_CLAUSE_PATTERN, where_str.strip())
     
     if not match:
         raise ValueError(f"Некорректный формат условия WHERE: '{where_str}'. "
@@ -39,7 +39,7 @@ def parse_set(set_str, table_schema):
     if not set_str:
         raise ValueError("Условие SET не может быть пустым")
     
-    pattern = r'(\w+)\s*=\s*(.+)'
+    pattern = SET_CLAUSE_PATTERN
     match = re.search(pattern, set_str.strip())
     
     if not match:
